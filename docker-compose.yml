@@ -1,0 +1,44 @@
+services:
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 大陆镜像源，可在 .env 中覆盖
+        BASE_IMAGE: ${BASE_IMAGE:-node:20-alpine}
+        APK_MIRROR: ${APK_MIRROR:-https://mirrors.aliyun.com}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: webhook-js:latest
+    container_name: webhook-js
+    restart: unless-stopped
+    # 变量取自项目根目录的 .env（不存在则使用下面的默认值）
+    environment:
+      PORT: ${PORT:-2306}
+      HOST: ${HOST:-0.0.0.0}
+      TZ: ${TZ:-Asia/Shanghai}
+      WEMEET_WEBHOOK_TOKEN: ${WEMEET_WEBHOOK_TOKEN:-}
+      WEMEET_WEBHOOK_AES_KEY: ${WEMEET_WEBHOOK_AES_KEY:-}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${HOST_PORT:-2306}:${PORT:-2306}"
+    volumes:
+      # 容器内以 node(uid 1000) 运行，使用命名卷可自动获得正确属主
+      - webhook-logs:/app/logs
+      # 如需把日志落到宿主机 ./logs，改用下面一行，并确保宿主机目录对 uid 1000 可写：
+      # mkdir -p logs && sudo chown 1000:1000 logs
+      # - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:${PORT:-2306}/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  webhook-logs:

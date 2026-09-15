@@ -25,16 +25,37 @@ app.use(session(koaSessionConfig, app));
 // 使用 koa-bodyparser 中间件
 app.use(bodyParser());
 
+// 健康检查，供容器 HEALTHCHECK / 负载均衡探活使用
+router.get('/health', async (ctx) => {
+    ctx.status = 200;
+    ctx.body = { status: 'ok', uptime: Number(process.uptime().toFixed(3)) };
+});
+
 // webhook相关路由和处理
 router.get(serverConfig.webhookPath, handleVerification);
 router.post(serverConfig.webhookPath, handleEvent);
 
 // 注册路由
 const port = process.env.PORT || serverConfig.apiPort;
+const host = process.env.HOST || '0.0.0.0';
 app.use(router.routes()).use(router.allowedMethods());
 
-app.listen(port, () => {
-    logger.info(`server is start, listening on port ${port}`);
+const server = app.listen(port, host, () => {
+    logger.info(`server is start, listening on ${host}:${port}`);
 }).on('error', (err) => {
     logger.error(`Failed to start server on port ${port}:`, err);
 });
+
+// 容器场景下优雅退出（docker stop 会发送 SIGTERM）
+function shutdown(signal) {
+    logger.info(`received ${signal}, shutting down gracefully`);
+    server.close(() => {
+        logger.info('server closed');
+        process.exit(0);
+    });
+    // 兜底：连接迟迟未释放时强制退出，避免容器停止被长时间阻塞
+    setTimeout(() => process.exit(0), 8000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

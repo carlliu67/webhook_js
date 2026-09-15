@@ -19,7 +19,11 @@
   "scripts": {
     "start": "npm run start:server",
     "start:server": "node ./server/server.js",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "docker:build": "docker build -t webhook-js:latest .",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
   },
   "eslintConfig": {
     "extends": [
